@@ -34,7 +34,7 @@ pip install -r requirements.txt
 
 ### 5. Запустите программу
 ```bash
-python lab.py
+python master.py
 ```
 
 ---
