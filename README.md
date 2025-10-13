@@ -10,6 +10,7 @@
 ```bash
 git clone https://github.com/verycoolteam/task-3-convex-polygons.git
 cd <task-3-convex-polygons>
+```
 
 ### 2. Создайте виртуальное окружение
 ```bash
@@ -23,12 +24,11 @@ python3 -m venv venv
   ```
 - **Windows CMD**
   ```powershell
-  .\venv\Scripts\Activate.ps1
+  venv\Scripts\activate
   ```
 
 ### 4. Установите зависимости
 ```bash
-pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
