@@ -8,8 +8,8 @@
 
 ### 1. Клонируйте репозиторий
 ```bash
-git clone https://github.com/verycoolteam/-task-3-convex-polygons.git
-cd <-task-3-convex-polygons>
+git clone https://github.com/verycoolteam/task-3-convex-polygons.git
+cd <task-3-convex-polygons>
 
 ### 2. Создайте виртуальное окружение
 ```bash
