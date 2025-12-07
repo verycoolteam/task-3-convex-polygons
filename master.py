@@ -137,10 +137,10 @@ class ConvexPolygon:
             B2 = a[0] - b[0]
             C2 = A2 * a[0] + B2 * a[1]
 
-            det = A1 * B2 - A2 * B1 # определитель
+            det = A1 * B2 - A2 * B1  # определитель матрицы системы
 
             if abs(det) < 1e-10:
-                return p1  # параллельные прямые
+                return p1  # прямые параллельны или совпадают
 
             x = (B2 * C1 - B1 * C2) / det
             y = (A1 * C2 - A2 * C1) / det
@@ -149,30 +149,38 @@ class ConvexPolygon:
 
         output_list = other.vertices.copy()  # начинаем с многоугольника other
 
-        # для каждого ребра clipping многоугольника
+        # для каждого ребра clipping многоугольника (self)
         for i in range(self.n):
-            input_list = output_list.copy()
-            output_list = []
+            input_list = output_list.copy()  # текущий многоугольник-кандидат на обрезку
+            output_list = []  # новый многоугольник после обрезки текущим ребром
 
             a = self.vertices[i]
-            b = self.vertices[(i + 1) % self.n]
+            b = self.vertices[(i + 1) % self.n]  # текущее ребро отсечения
 
             for j in range(len(input_list)):
                 p1 = input_list[j]
-                p2 = input_list[(j + 1) % len(input_list)]
+                p2 = input_list[(j + 1) % len(input_list)]  # текущее ребро входного многоугольника
 
-                # сохраняем только точки, лежащие внутри текущего ребра отсечения
+                # случай 1: p2 внутри отсекающей полуплоскости
                 if inside(p2, a, b):
+                    # случай 1a: p1 снаружи -> добавляем точку пересечения
                     if not inside(p1, a, b):
                         output_list.append(compute_intersection(p1, p2, a, b))
+                    # добавляем p2 (она внутри)
                     output_list.append(p2)
+
+                # случай 2: p1 внутри, p2 снаружи -> добавляем только точку пересечения
                 elif inside(p1, a, b):
                     output_list.append(compute_intersection(p1, p2, a, b))
 
+                # случай 3: оба снаружи -> не добавляем ничего
+
+        # если осталось меньше 3 вершин, пересечение пустое или вырожденное
         if len(output_list) < 3:
             return None
 
         return ConvexPolygon(output_list)
+
 
     # триангуляция выпуклого многоугольника.
     def triangulate(self) -> List[List[Tuple[float, float]]]:
@@ -199,82 +207,81 @@ class ConvexPolygon:
 
 
 if __name__ == "__main__":
+    square = ConvexPolygon([(0, 0), (2, 0), (2, 2), (0, 2)])
+
+    triangle = ConvexPolygon([(1, 1), (3, 1), (2, 3)])
+
+    pentagon = ConvexPolygon([(0.5, 0.5), (1.5, 0.2), (2.5, 0.5),
+                              (2.2, 1.5), (0.8, 1.5)])
+
+    print(f"площадь квадрата: {square.area():.2f}")
+    print(f"периметр квадрата: {square.perimeter():.2f}")
+    print(f"площадь треугольника: {triangle.area():.2f}")
+    print(f"периметр треугольника: {triangle.perimeter():.2f}")
+
+    test_point = (1, 1)
+    print(f"точка {test_point} в квадрате: {square.contains_point(test_point)}")
+    print(f"точка {test_point} в треугольнике: {triangle.contains_point(test_point)}")
+
+    print(f"треугольник в квадрате: {square.contains_polygon(triangle)}")
+
+    intersection = square.intersection(triangle)
+    if intersection:
+        print(f"площадь пересечения: {intersection.area():.2f}")
+
+    triangles = pentagon.triangulate()
+    print(f"пятиугольник разбит на {len(triangles)} треугольника")
+
+    plt.figure(figsize=(12, 10))
+
+    plt.subplot(2, 2, 1)
+    square.plot(color='blue', label='Квадрат')
+    triangle.plot(color='red', label='Треугольник')
+    plt.plot(test_point[0], test_point[1], 'go', markersize=8, label='Тестовая точка')
+    plt.legend()
+    plt.title('Исходные многоугольники')
+    plt.axis('equal')
+    plt.grid(True)
+
+    plt.subplot(2, 2, 2)
+    square.plot(color='blue', alpha=0.3)
+    triangle.plot(color='red', alpha=0.3)
+    if intersection:
+        intersection.plot(color='green', alpha=0.7, label='Пересечение')
+    plt.legend()
+    plt.title('Пересечение многоугольников')
+    plt.axis('equal')
+    plt.grid(True)
+
+    plt.subplot(2, 2, 3)
+    colors = ['red', 'green', 'blue', 'orange']
+    for i, triangle_vertices in enumerate(triangles):
+        tri_patch = patches.Polygon(triangle_vertices, closed=True,
+                                    color=colors[i % len(colors)], alpha=0.6)
+        plt.gca().add_patch(tri_patch)
+
+        x, y = zip(*triangle_vertices + [triangle_vertices[0]])
+        plt.plot(x, y, 'o-', color=colors[i % len(colors)], markersize=4)
+
+    plt.title('Триангуляция пятиугольника')
+    plt.axis('equal')
+    plt.grid(True)
+
+    plt.subplot(2, 2, 4)
+    convex_demo = ConvexPolygon([(0, 0), (2, 0), (2, 2), (0, 2)])
+    convex_demo.plot(color='green', alpha=0.7, label='Выпуклый')
+
     try:
-        square = ConvexPolygon([(0, 0), (2, 0), (2, 2), (0, 2)])
-
-        triangle = ConvexPolygon([(1, 1), (3, 1), (2, 3)])
-
-        pentagon = ConvexPolygon([(0.5, 0.5), (1.5, 0.2), (2.5, 0.5),
-                                  (2.2, 1.5), (0.8, 1.5)])
-
-        print(f"площадь квадрата: {square.area():.2f}")
-        print(f"периметр квадрата: {square.perimeter():.2f}")
-        print(f"площадь треугольника: {triangle.area():.2f}")
-        print(f"периметр треугольника: {triangle.perimeter():.2f}")
-
-        test_point = (1, 1)
-        print(f"точка {test_point} в квадрате: {square.contains_point(test_point)}")
-        print(f"точка {test_point} в треугольнике: {triangle.contains_point(test_point)}")
-
-        print(f"треугольник в квадрате: {square.contains_polygon(triangle)}")
-
-        intersection = square.intersection(triangle)
-        if intersection:
-            print(f"площадь пересечения: {intersection.area():.2f}")
-
-        triangles = pentagon.triangulate()
-        print(f"пятиугольник разбит на {len(triangles)} треугольника")
-
-        plt.figure(figsize=(12, 10))
-
-        plt.subplot(2, 2, 1)
-        square.plot(color='blue', label='Квадрат')
-        triangle.plot(color='red', label='Треугольник')
-        plt.plot(test_point[0], test_point[1], 'go', markersize=8, label='Тестовая точка')
-        plt.legend()
-        plt.title('Исходные многоугольники')
-        plt.axis('equal')
-        plt.grid(True)
-
-        plt.subplot(2, 2, 2)
-        square.plot(color='blue', alpha=0.3)
-        triangle.plot(color='red', alpha=0.3)
-        if intersection:
-            intersection.plot(color='green', alpha=0.7, label='Пересечение')
-        plt.legend()
-        plt.title('Пересечение многоугольников')
-        plt.axis('equal')
-        plt.grid(True)
-
-        plt.subplot(2, 2, 3)
-        colors = ['red', 'green', 'blue', 'orange']
-        for i, triangle_vertices in enumerate(triangles):
-            tri_patch = patches.Polygon(triangle_vertices, closed=True,
-                                        color=colors[i % len(colors)], alpha=0.6)
-            plt.gca().add_patch(tri_patch)
-
-            x, y = zip(*triangle_vertices + [triangle_vertices[0]])
-            plt.plot(x, y, 'o-', color=colors[i % len(colors)], markersize=4)
-
-        plt.title('Триангуляция пятиугольника')
-        plt.axis('equal')
-        plt.grid(True)
-
-        plt.subplot(2, 2, 4)
-        convex_demo = ConvexPolygon([(0, 0), (2, 0), (2, 2), (0, 2)])
-        convex_demo.plot(color='green', alpha=0.7, label='Выпуклый')
-
-        non_convex_vertices = [(0, 0), (2, 0), (1, 1), (2, 2), (0, 2)]
-        x, y = zip(*non_convex_vertices + [non_convex_vertices[0]])
+        non_convex = ConvexPolygon([(0, 0), (2, 0), (1, 1), (2, 2), (0, 2)])
+        non_convex.plot(color='red', alpha=0.7, label='Невыпуклый')
+    except ValueError as e:
+        x, y = zip(*[(0, 0), (2, 0), (1, 1), (2, 2), (0, 2), (0, 0)])
         plt.plot(x, y, 'ro--', alpha=0.7, label='Невыпуклый')
 
-        plt.legend()
-        plt.title('Сравнение: выпуклый vs невыпуклый')
-        plt.axis('equal')
-        plt.grid(True)
+    plt.legend()
+    plt.title('Сравнение: выпуклый vs невыпуклый')
+    plt.axis('equal')
+    plt.grid(True)
 
-        plt.tight_layout()
-        plt.show()
-
-    except ValueError as e:
-        print(f"Ошибка: {e}")
+    plt.tight_layout()
+    plt.show()
