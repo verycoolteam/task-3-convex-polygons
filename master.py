@@ -115,11 +115,15 @@ class ConvexPolygon:
 
         return None
 
+
     # нахождение пересечения двух выпуклых многоугольников.
     def intersection(self, other: 'ConvexPolygon') -> Optional['ConvexPolygon']:
         # используется алгоритм Sutherland-Hodgman.
         # изначально использовалась проверка на принадлежность вершин, однако не учитываются
         # все случаи (звезда Давида)
+
+        # Правки: мы избегаем лишних копирований, используя два списка
+        # (current и next_poly) и переключаясь между ними.
 
         # проверка, находится ли точка p внутри ребра ab
         def inside(p: Tuple[float, float], a: Tuple[float, float], b: Tuple[float, float]) -> bool:
@@ -137,50 +141,57 @@ class ConvexPolygon:
             B2 = a[0] - b[0]
             C2 = A2 * a[0] + B2 * a[1]
 
-            det = A1 * B2 - A2 * B1  # определитель матрицы системы
+            det = A1 * B2 - A2 * B1  # определитель
 
             if abs(det) < 1e-10:
-                return p1  # прямые параллельны или совпадают
+                return p1  # параллельные прямые
 
             x = (B2 * C1 - B1 * C2) / det
             y = (A1 * C2 - A2 * C1) / det
 
             return (x, y)
 
-        output_list = other.vertices.copy()  # начинаем с многоугольника other
+        # Используем два списка вместо копирования
+        current = list(other.vertices)  # текущий многоугольник после обработки предыдущих ребер
+        next_poly = []  # многоугольник после обработки текущим ребром
 
-        # для каждого ребра clipping многоугольника (self)
+        # для каждого ребра clipping многоугольника
         for i in range(self.n):
-            input_list = output_list.copy()  # текущий многоугольник-кандидат на обрезку
-            output_list = []  # новый многоугольник после обрезки текущим ребром
+            if not current:  # если многоугольник стал пустым
+                break
 
             a = self.vertices[i]
-            b = self.vertices[(i + 1) % self.n]  # текущее ребро отсечения
+            b = self.vertices[(i + 1) % self.n]
 
-            for j in range(len(input_list)):
-                p1 = input_list[j]
-                p2 = input_list[(j + 1) % len(input_list)]  # текущее ребро входного многоугольника
+            # Очищаем список для нового многоугольника
+            # Вместо создания нового списка, очищаем существующий
+            next_poly.clear()
 
-                # случай 1: p2 внутри отсекающей полуплоскости
+            # обходим все ребра текущего многоугольника
+            m = len(current)
+            for j in range(m):
+                p1 = current[j]
+                p2 = current[(j + 1) % m]
+
+                # сохраняем только точки, лежащие внутри текущего ребра отсечения
                 if inside(p2, a, b):
-                    # случай 1a: p1 снаружи -> добавляем точку пересечения
                     if not inside(p1, a, b):
-                        output_list.append(compute_intersection(p1, p2, a, b))
-                    # добавляем p2 (она внутри)
-                    output_list.append(p2)
-
-                # случай 2: p1 внутри, p2 снаружи -> добавляем только точку пересечения
+                        next_poly.append(compute_intersection(p1, p2, a, b))
+                    next_poly.append(p2)
                 elif inside(p1, a, b):
-                    output_list.append(compute_intersection(p1, p2, a, b))
+                    next_poly.append(compute_intersection(p1, p2, a, b))
 
-                # случай 3: оба снаружи -> не добавляем ничего
+            # Переключаем списки: результат этой итерации становится входом для следующей
+            current, next_poly = next_poly, current
 
-        # если осталось меньше 3 вершин, пересечение пустое или вырожденное
-        if len(output_list) < 3:
+        if len(current) < 3:
             return None
 
-        return ConvexPolygon(output_list)
-
+        try:
+            return ConvexPolygon(current)
+        except ValueError:
+            # В случае численных ошибок (почти коллинеарные точки)
+            return None
 
     # триангуляция выпуклого многоугольника.
     def triangulate(self) -> List[List[Tuple[float, float]]]:
@@ -226,8 +237,12 @@ if __name__ == "__main__":
     print(f"треугольник в квадрате: {square.contains_polygon(triangle)}")
 
     intersection = square.intersection(triangle)
+    print(f"\nПересечение существует: {intersection is not None}")
     if intersection:
-        print(f"площадь пересечения: {intersection.area():.2f}")
+        print(f"Вершины пересечения: {intersection.vertices}")
+        print(f"Площадь пересечения: {intersection.area():.2f}")
+    else:
+        print("Пересечение пустое или None")
 
     triangles = pentagon.triangulate()
     print(f"пятиугольник разбит на {len(triangles)} треугольника")
@@ -235,8 +250,8 @@ if __name__ == "__main__":
     plt.figure(figsize=(12, 10))
 
     plt.subplot(2, 2, 1)
-    square.plot(color='blue', label='Квадрат')
-    triangle.plot(color='red', label='Треугольник')
+    square.plot(color='blue', alpha=0.5, label='Квадрат')
+    triangle.plot(color='red', alpha=0.5, label='Треугольник')
     plt.plot(test_point[0], test_point[1], 'go', markersize=8, label='Тестовая точка')
     plt.legend()
     plt.title('Исходные многоугольники')
@@ -244,8 +259,8 @@ if __name__ == "__main__":
     plt.grid(True)
 
     plt.subplot(2, 2, 2)
-    square.plot(color='blue', alpha=0.3)
-    triangle.plot(color='red', alpha=0.3)
+    square.plot(color='blue', alpha=0.3, label='Квадрат')
+    triangle.plot(color='red', alpha=0.3, label='Треугольник')
     if intersection:
         intersection.plot(color='green', alpha=0.7, label='Пересечение')
     plt.legend()
@@ -268,15 +283,24 @@ if __name__ == "__main__":
     plt.grid(True)
 
     plt.subplot(2, 2, 4)
-    convex_demo = ConvexPolygon([(0, 0), (2, 0), (2, 2), (0, 2)])
-    convex_demo.plot(color='green', alpha=0.7, label='Выпуклый')
 
+    convex_demo = ConvexPolygon([(0, 0), (2, 0), (2, 2), (0, 2)])
+
+    convex_patch = patches.Polygon(convex_demo.vertices, closed=True,
+                                   color='green', alpha=0.7, label='Выпуклый')
+    plt.gca().add_patch(convex_patch)
+
+    x1, y1 = zip(*convex_demo.vertices + [convex_demo.vertices[0]])
+    plt.plot(x1, y1, 'g-', alpha=0.7)
+
+    # пытаемся создать невыпуклый
     try:
         non_convex = ConvexPolygon([(0, 0), (2, 0), (1, 1), (2, 2), (0, 2)])
         non_convex.plot(color='red', alpha=0.7, label='Невыпуклый')
-    except ValueError as e:
-        x, y = zip(*[(0, 0), (2, 0), (1, 1), (2, 2), (0, 2), (0, 0)])
-        plt.plot(x, y, 'ro--', alpha=0.7, label='Невыпуклый')
+    except ValueError:
+        non_convex_vertices = [(0, 0), (2, 0), (1, 1), (2, 2), (0, 2)]
+        x2, y2 = zip(*non_convex_vertices + [non_convex_vertices[0]])
+        plt.plot(x2, y2, 'ro--', alpha=0.7, linewidth=2, label='Невыпуклый (ошибка)')
 
     plt.legend()
     plt.title('Сравнение: выпуклый vs невыпуклый')
